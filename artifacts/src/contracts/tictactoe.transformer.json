@@ -4,6 +4,6 @@
   "scryptfile": "src/contracts/tictactoe.scrypt",
   "sourceMapFile": "src/contracts/tictactoe.scrypt.map",
   "ctxMethods": [
-    "move"
+    "increment"
   ]
 }
