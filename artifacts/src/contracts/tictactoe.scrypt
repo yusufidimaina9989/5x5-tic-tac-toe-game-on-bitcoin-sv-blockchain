@@ -1,0 +1,64 @@
+
+contract TicTacToe {
+  PubKey alice;
+  PubKey bob;
+  @state bool is_alice_turn;
+  @state int[9] board;
+  static const int EMPTY = 0;
+  static const int ALICE = 1;
+  static const int BOB = 2;
+  constructor(PubKey alice, PubKey bob) {
+    this.alice = alice;
+    this.bob = bob;
+    this.is_alice_turn = true;
+    this.board = repeat(0, 9);
+  }
+  public function move(int n, Sig sig, SigHashPreimage __scrypt_ts_txPreimage, int __scrypt_ts_changeAmount, Ripemd160 __scrypt_ts_changeAddress) {
+    require(Tx.checkPreimageSigHashType(__scrypt_ts_txPreimage, SigHashType(b'41')));
+    require(n >= 0 && n < 9);
+    PubKey player = this.is_alice_turn ? this.alice : this.bob;
+    require(checkSig(sig, player));
+    require(this.board[(n)] == 0);
+    int play = this.is_alice_turn ? 1 : 2;
+    this.board[(n)] = play;
+    this.is_alice_turn = !this.is_alice_turn;
+    bytes outputs = b'';
+    if(this.won(play)) {
+        outputs = Utils.buildOutput(Utils.buildPublicKeyHashScript(hash160(player)), SigHash.value(__scrypt_ts_txPreimage));
+      } else if(this.full()) {
+        int halfAmount = SigHash.value(__scrypt_ts_txPreimage) / 2;
+        bytes aliceOutput = Utils.buildOutput(Utils.buildPublicKeyHashScript(hash160(this.alice)), halfAmount);
+        bytes bobOutput = Utils.buildOutput(Utils.buildPublicKeyHashScript(hash160(this.bob)), halfAmount);
+        outputs = aliceOutput + bobOutput;
+      } else {
+        outputs = this.buildStateOutput(SigHash.value(__scrypt_ts_txPreimage));
+      }
+    if(__scrypt_ts_changeAmount > 0) {
+        outputs += (__scrypt_ts_changeAmount > 0 ? Utils.buildOutput(Utils.buildPublicKeyHashScript(__scrypt_ts_changeAddress), __scrypt_ts_changeAmount) : b'');
+      }
+    require(SigHash.hashOutputs(__scrypt_ts_txPreimage) == hash256(outputs));
+  }
+  function won(int play) : bool {
+    int[8][3] lines = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+    bool anyLine = false;
+    loop (8) : i {
+        bool line = true;
+        loop (3) : j {
+          line = line && this.board[(lines[i][j])] == play;
+        }
+        anyLine = anyLine || line;
+      }
+    return anyLine;
+  }
+  function full() : bool {
+    bool full = true;
+    loop (9) : i {
+        full = full && this.board[i] != 0;
+      }
+    return full;
+  }
+    function buildStateOutput(int amount): bytes {
+      bytes script = this.getStateScript();
+      return Utils.buildOutput(script, amount);
+    }
+}
