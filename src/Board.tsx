@@ -25,7 +25,9 @@ function Board(props: any) {
       props.winnerSquares &&
         (props.winnerSquares[0] === i ||
           props.winnerSquares[1] === i ||
-          props.winnerSquares[2] === i)
+          props.winnerSquares[2] === i ||
+          props.winnerSquares[3] === i ||
+          props.winnerSquares[4] === i)
         ? 'square--green'
         : '';
 
