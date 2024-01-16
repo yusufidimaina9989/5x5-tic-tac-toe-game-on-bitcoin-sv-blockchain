@@ -2,16 +2,15 @@ import "./App.css";
 import Game from "./Game";
 import { useState, useRef } from "react";
 import TitleBar from "./TitleBar";
-import { DefaultProvider, SensiletSigner, toHex, PubKey } from "scrypt-ts";
+import { DefaultProvider, PandaSigner, PubKey, toHex } from "scrypt-ts";
 import { TicTacToe } from "./contracts/tictactoe";
-
 const initialGameData = {
   amount: 0,
   name: "tic-tac-toe",
   date: new Date(),
   history: [
     {
-      squares: Array(25).fill(null),
+      squares: Array(9).fill(null),
     },
   ],
   currentStepNumber: 0,
@@ -23,7 +22,8 @@ function App() {
 
   const [gameData, setGameData] = useState(initialGameData);
   const [isConnected, setConnected] = useState(false);
-  const signerRef = useRef<SensiletSigner>();
+
+  const signerRef = useRef<PandaSigner>();
   const [contract, setContract] = useState<TicTacToe | undefined>(undefined)
   const [deployedTxId, setDeployedTxId] = useState<string>("")
   const [alicePubkey, setAlicePubkey] = useState("");
@@ -33,41 +33,50 @@ function App() {
 
   const startGame = async (amount: number) => {
 
+    if (!isConnected || !alicePubkey || !bobPubkey) {
+      setConnected(false)
+      alert("Please connect wallet first.")
+      return
+    }
+
+
+
     try {
-      const signer = signerRef.current as SensiletSigner;
+      const signer = signerRef.current as PandaSigner;
+
+
       const instance = new TicTacToe(
         PubKey(toHex(alicePubkey)),
         PubKey(toHex(bobPubkey))
-      );
-      
+      )
+
       await instance.connect(signer);
 
-      const tx = await instance.deploy(amount)
+      const tx = await instance.deploy(amount);
 
       setDeployedTxId(tx.id)
-  
+
       setContract(instance)
-  
+
       setGameData(Object.assign({}, gameData, {
         start: true
       }))
-    } catch(e) {
-      console.error('deploy TicTacToe failed', e)
-      alert('deploy TicTacToe failed')
+    } catch (e) {
+      console.error('Deploying TicTacToe failed.', e)
+      alert('Deploying TicTacToe failed.')
     }
-    
-  };
 
+  };
 
   const cancelGame = async () => {
     setGameData(Object.assign({}, gameData, initialGameData))
   };
 
-  const sensiletLogin = async () => {
+  const login = async () => {
+    console.log('login...')
     try {
-
       const provider = new DefaultProvider();
-      const signer = new SensiletSigner(provider);
+      const signer = new PandaSigner(provider);
 
       signerRef.current = signer;
 
@@ -76,23 +85,21 @@ function App() {
         throw new Error(error)
       }
 
-      setConnected(true);
+      const pubkey = await signer.getDefaultPubKey();
 
-      const alicPubkey = await signer.getDefaultPubKey();
-      setAlicePubkey(toHex(alicPubkey))
-
+      setAlicePubkey(toHex(pubkey))
+      setBobPubkey(toHex(pubkey))
       signer.getBalance().then(balance => {
-        // UTXOs belonging to transactions in the mempool are unconfirmed
         setAliceBalance(balance.confirmed + balance.unconfirmed)
+        setBobBalance(balance.confirmed + balance.unconfirmed)
       })
-
-      // Prompt user to switch accounts
-
+      setConnected(true);
     } catch (error) {
-      console.error("sensiletLogin failed", error);
-      alert("sensiletLogin failed")
+      console.error("Panda Wallet login failed", error);
+      alert("Panda Wallet login failed")
     }
   };
+
 
   return (
     <div className="App">
@@ -103,15 +110,25 @@ function App() {
           onCancel={cancelGame}
           started={gameData.start}
         />
-        <Game gameData={gameData} setGameData={setGameData} />
+        <Game gameData={gameData} 
+        setGameData={setGameData} 
+        deployedTxId={deployedTxId} 
+        contract={contract} 
+        setContract={setContract}
+        alicePubkey={alicePubkey}
+        bobPubkey={bobPubkey} />
 
         {
           isConnected ?
-            <label>Balance: {alicebalance} <span> (satoshis)</span></label>
+          <div>
+            <label>Alice Balance: {alicebalance} <span> (satoshis)</span></label>
+            <br/>
+            <label>Bob Balance: {bobbalance}  <span> (satoshis)</span></label>
+          </div>
             :
             <button
-              className="pure-button button-large sensilet"
-              onClick={sensiletLogin}
+              className="pure-button button-large"
+              onClick={login}
             >
               Connect Wallet
             </button>
